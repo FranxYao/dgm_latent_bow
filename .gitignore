@@ -1,0 +1,4 @@
+.vscode
+src/__pycache__
+data/mscoco
+outputs

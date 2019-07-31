@@ -252,6 +252,7 @@ class Controller(object):
       start_time = time.time()
 
       for bi in range(num_batches):
+      # for bi in range(100):
         batch_dict = dset.next_batch("train", batch_size, model_name)
         batch_dict["drop_out"] = drop_out
         output_dict = model.train_step(sess, batch_dict, ei)
@@ -453,25 +454,29 @@ class Controller(object):
 
     if(self.write_output):
       output_fd = open(self.output_path + "output_e%d.txt" % ei, "w")
-    pred_batch = np.random.randint(0, num_batches)
+    # pred_batch = np.random.randint(0, num_batches)
+    pred_batch = 0
 
     references = []
     dec_outputs = []
 
     for bi in range(num_batches):
+    # for bi in range(50):
       batch_dict = dset.next_batch(mode, batch_size, model_name)
       references.extend(batch_dict['references'])
       output_dict = model.predict(sess, batch_dict)    
       dec_outputs.extend(
         _cut_eos(output_dict["dec_predict"], self.dec_end_id))    
 
-      if(self.write_output and self.model_name == "latent_bow"):
-        if(self.is_gumbel):
-          output_dict_list = [output_dict]
-          for i in range(self.gumbel_samples - 1):
-            output_dict_list.append(model.predict(sess, batch_dict))
-          dset.print_gumbel(output_dict_list, batch_dict, output_fd)
-        else: dset.print_predict(model_name, output_dict, batch_dict, output_fd)
+      if(self.write_output and 
+        self.model_name == "latent_bow" and self.is_gumbel):
+        output_dict_list = [output_dict]
+        for i in range(self.gumbel_samples - 1):
+          output_dict_list.append(model.predict(sess, batch_dict))
+        dset.print_gumbel(output_dict_list, batch_dict, output_fd)
+      else: 
+        dset.print_predict(model_name, output_dict, batch_dict, 
+          output_fd, 0)
 
 
       if(bi == pred_batch):
@@ -482,7 +487,7 @@ class Controller(object):
             output_dict_list.append(model.predict(sess, batch_dict))
           dset.print_gumbel(output_dict_list, batch_dict)
         else:
-          dset.print_predict(model_name, output_dict, batch_dict)
+          dset.print_predict(model_name, output_dict, batch_dict, None, 3)
 
       metrics_dict_update = self.eval_metrics(sess, output_dict, batch_dict)
       metrics_dict_update.update(output_dict)

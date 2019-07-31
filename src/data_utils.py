@@ -610,17 +610,18 @@ class Dataset(object):
         is_break = True
     return s_out
 
-  def print_predict(self, model_name, output_dict, batch_dict, fd=None):
+  def print_predict(self, 
+    model_name, output_dict, batch_dict, fd=None, num_cases=6):
     """Print out the prediction"""
     if(model_name == "seq2seq"): 
-      self.print_predict_seq2seq(output_dict, batch_dict, fd)
+      self.print_predict_seq2seq(output_dict, batch_dict, fd, num_cases)
     elif(model_name == "bow_seq2seq"):
       self.print_predict_bow_seq2seq(output_dict, batch_dict)
     elif(model_name == "latent_bow"):
       if(self.compare_outputs): 
-        self.print_predict_latent_bow(output_dict, batch_dict, fd)
+        self.print_predict_seq2seq(output_dict, batch_dict, fd, num_cases)
       else: 
-        self.print_predict_seq2seq(output_dict, batch_dict, fd)
+        self.print_predict_latent_bow(output_dict, batch_dict, fd)
     return
 
   def print_predict_latent_bow(self, output_dict, batch_dict, fd=None):
@@ -725,11 +726,11 @@ class Dataset(object):
     return
 
   def print_predict_seq2seq(
-    self, output_dict, batch_dict, fd=None, print_ref=True, num_cases=6):
+    self, output_dict, batch_dict, fd=None, num_cases=6):
     """Print the predicted sentences for the sequence to sequence model"""
     predict = output_dict["dec_predict"]
     inputs = batch_dict["enc_inputs"]
-    if(print_ref): references = batch_dict["references"]
+    references = batch_dict["references"]
     batch_size = output_dict["dec_predict"].shape[0]
     for i in range(batch_size):
       str_out = 'inputs:\n'
@@ -739,8 +740,9 @@ class Dataset(object):
       str_out += "references:\n"
       for r in references[i]:
         str_out += self.decode_sent(r) + '\n'
+      str_out += '----\n'
       if(i < num_cases): print(str_out)
-      fd.write(str_out)
+      if(fd is not None): fd.write(str_out)
     return 
   
   def print_predict_seq2paraphrase(self, output_dict, batch_dict, num_cases=3):

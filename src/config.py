@@ -5,7 +5,7 @@ import shutil
 
 class Config:
   ## Data configuration 
-  dataset = "mscoco" # ["mscoco", "quora"]
+  dataset = "wikibio" # ["mscoco", "quora", 'wikibio']
 
   # For a detailed data processing clarification and consideration, see the 
   # data_utils.py
@@ -25,13 +25,24 @@ class Config:
 
   full_quora = False
 
-  max_sent_len = {"mscoco": 16, 'mscoco14': 16, "quora": 20} # 95 percentile 
+  max_sent_len = {"mscoco": 16, 
+                  'mscoco14': 16, 
+                  "quora": 20} # 95 percentile 
+  max_enc_len = {'wikibio': 85}
+  max_dec_len = {'wikibio': 42}
   vocab_size = -1
 
-  dec_start_id = ""
-  dec_end_id = ""
-  pad_id = -1
+  dec_start_id = 0
+  dec_end_id = 1
+  pad_id = 2
+  unk_id = 3
   stop_words = None
+
+  # the wikibio dataset configuration 
+  data2text_dir = '../wiki2bio/processed_data'
+  data2text_limits = 0
+  data2text_word_vocab_path = '../wiki2bio/original_data/word_vocab.txt'
+  data2text_field_vocab_path = '../wiki2bio/original_data/field_vocab.txt'
 
   ## Model configuration 
   """Model names in: 
@@ -52,7 +63,7 @@ class Config:
   num_paraphrase = 4 # 1 for quora, 4 for mscoco
   enc_layers = 2
   lambda_enc_loss = 1.0
-  max_enc_bow = 25 # The number of bag of words, 25 for mscoco, 11 for quora
+  max_enc_bow = 30 # The number of bag of words, 25 for mscoco, 11 for quora
   no_residual = False
 
   # vae setting 
@@ -65,9 +76,9 @@ class Config:
   dec_layers = 2
   is_attn = True
   source_attn = True
-  max_dec_bow = 10 # 10 for mscoco, 11 for quora 
+  max_dec_bow = 30 # 10 for mscoco, 11 for quora 
   source_sample_ratio = 0.
-  sample_size = 12 # 12 for mscoco, 11 for quora
+  sample_size = 30 # 12 for mscoco, 11 for quora, 30 for wikibio
   sampling_method = "greedy" # "topk", "greedy"
   topk_sampling_size = 1
   predict_source_bow = True
@@ -92,7 +103,7 @@ class Config:
   batch_size = 100 # 60 for the seq2seq model, effective batch size = 100 
   start_epoch = 0
   num_epoch = 20
-  train_print_interval = 200
+  train_print_interval = 500
 
   # evaluation metrics
   # eval_metrics_list = ["bleu", "rouge", "ppl", "dist", "self_bleu", "jaccard"]
@@ -126,6 +137,8 @@ class Config:
     self.bow_cond = flags.bow_cond
     self.bow_cond_gate = flags.bow_cond_gate
     if(flags.num_pointers != -1): self.num_pointers = flags.num_pointers
+    if(flags.enc_layers != -1): self.enc_layers = flags.enc_layers
+    self.dec_layers = self.enc_layers
 
     if(flags.dataset != ""): self.dataset = flags.dataset
     if(self.dataset == "quora"):
@@ -185,51 +198,56 @@ class Config:
 
   def print_arg(self):
     print("--------------------- Configuration ----------------------")
-    print("dataset: %s" % self.dataset)
-    print("model_name: %s" % self.model_name)
-    print("model_mode: %s" % self.model_mode)
-    print("model_path: %s" % self.model_path)
-    print("output_path: %s" % self.output_path)
-    print("model_version: %s" % self.model_version)
-    print("num_paraphrase: %d" % self.num_paraphrase)
-    print("lambda_enc_loss: %.2f" % self.lambda_enc_loss)
-    print("enc_layers: %d" % self.enc_layers)
-    print("dec_layers: %d" % self.dec_layers)
-    print("state_size: %d" % self.state_size)
-    print("is_attn: %s" % str(self.is_attn))
-    print("source_attn: %s" % str(self.source_attn))
-    print("drop_out: %.2f" % self.drop_out)
-    print("vae_seq2seq: %s" % str(self.vae_seq2seq))
-    print("lambda_kl: %.5f" % self.lambda_kl)
-    print("prior: %s" % self.prior)
-    print("sampling_method: %s" % self.sampling_method)
-    print("topk sampling size: %d" % self.topk_sampling_size)
-    print("bow_pred_method: %s" % self.bow_pred_method)
-    print("is_gumbel: %s" % str(self.is_gumbel))
-    print("gumbel_tau: %.3f" % self.gumbel_tau)
-    print("max_enc_bow: %d" % self.max_enc_bow)
-    print("max_dec_bow: %d" % self.max_dec_bow)
-    print("is_cheat: %s" % (self.is_cheat))
-    print("sample_size: %d" % self.sample_size)
-    print("source_sample_ratio: %.2f" % self.source_sample_ratio)
-    print("bow_loss_fn: %s" % self.bow_loss_fn)
-    print("controller_mode: %s" % self.controller_mode)
-    print("batch_size: %d" % self.batch_size)
-    print("start_epoch: %d" % self.start_epoch)
-    print("num_epoch: %d" % self.num_epoch)
-    print("train_print_interval: %d" % self.train_print_interval)
-    print("optimizer: %s" % self.optimizer)
-    print("learning_rate_decay: %s" % float(self.learning_rate_decay))
-    print("learning_rate: %.6g" % self.learning_rate)
-    print("learning_rate_enc: %.6g" % self.learning_rate_enc)
-    print("learning_rate_dec: %.6g" % self.learning_rate_dec)
-    print('single_ref: %s' % self.single_ref)
-    print('no_residual: %s' % self.no_residual)
-    print('copy: %s' % self.copy)
-    print('num_pointers: %d' % self.num_pointers)
-    print('bow_cond: %s' % self.bow_cond)
-    print('bow_cond_gate: %s' % self.bow_cond_gate)
-    print('compare_outputs: %s' % self.compare_outputs)
-    print("gpu_id: %s" % self.gpu_id)
+    print('dataset config:')
+    print("  dataset: %s" % self.dataset)
+
+    print('model config:')
+    print("  model_name: %s" % self.model_name)
+    print("  model_mode: %s" % self.model_mode)
+    print("  model_path: %s" % self.model_path)
+    print("  output_path: %s" % self.output_path)
+    print("  model_version: %s" % self.model_version)
+    print("  num_paraphrase: %d" % self.num_paraphrase)
+    print("  lambda_enc_loss: %.2f" % self.lambda_enc_loss)
+    print("  enc_layers: %d" % self.enc_layers)
+    print("  dec_layers: %d" % self.dec_layers)
+    print("  state_size: %d" % self.state_size)
+    print("  is_attn: %s" % str(self.is_attn))
+    print("  source_attn: %s" % str(self.source_attn))
+    print("  drop_out: %.2f" % self.drop_out)
+    print("  vae_seq2seq: %s" % str(self.vae_seq2seq))
+    print("  lambda_kl: %.5f" % self.lambda_kl)
+    print("  prior: %s" % self.prior)
+    print("  sampling_method: %s" % self.sampling_method)
+    print("  topk sampling size: %d" % self.topk_sampling_size)
+    print("  bow_pred_method: %s" % self.bow_pred_method)
+    print("  is_gumbel: %s" % str(self.is_gumbel))
+    print("  gumbel_tau: %.3f" % self.gumbel_tau)
+    print("  max_enc_bow: %d" % self.max_enc_bow)
+    print("  max_dec_bow: %d" % self.max_dec_bow)
+    print("  is_cheat: %s" % (self.is_cheat))
+    print("  sample_size: %d" % self.sample_size)
+    print("  source_sample_ratio: %.2f" % self.source_sample_ratio)
+    print("  bow_loss_fn: %s" % self.bow_loss_fn)
+    print('  no_residual: %s' % self.no_residual)
+    print('  copy: %s' % self.copy)
+    print('  num_pointers: %d' % self.num_pointers)
+    print('  bow_cond: %s' % self.bow_cond)
+    print('  bow_cond_gate: %s' % self.bow_cond_gate)
+
+    print('controller config:')
+    print("  controller_mode: %s" % self.controller_mode)
+    print("  batch_size: %d" % self.batch_size)
+    print("  start_epoch: %d" % self.start_epoch)
+    print("  num_epoch: %d" % self.num_epoch)
+    print("  train_print_interval: %d" % self.train_print_interval)
+    print("  optimizer: %s" % self.optimizer)
+    print("  learning_rate_decay: %s" % float(self.learning_rate_decay))
+    print("  learning_rate: %.6g" % self.learning_rate)
+    print("  learning_rate_enc: %.6g" % self.learning_rate_enc)
+    print("  learning_rate_dec: %.6g" % self.learning_rate_dec)
+    print('  single_ref: %s' % self.single_ref)
+    print('  compare_outputs: %s' % self.compare_outputs)
+    print("  gpu_id: %s" % self.gpu_id)
     print("----------------------------------------------------------")
     return 

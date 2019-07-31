@@ -25,7 +25,7 @@ def create_cell(name, state_size, drop_out, no_residual=False):
   else: print('not use residual')
   return cell
 
-class Seq2seq(object):
+class Seq2seqData2text(object):
   """The sequence to sequence model"""
 
   def __init__(self, config):
@@ -55,7 +55,7 @@ class Seq2seq(object):
 
   def build(self):
     """Build the model"""
-    print("Building the sequence to sequence model ... ")
+    print("Building the seq2seq model for data to text generation... ")
 
     vocab_size = self.vocab_size
     state_size = self.state_size
@@ -63,38 +63,57 @@ class Seq2seq(object):
 
     # Placeholders
     with tf.name_scope("placeholders"):
-      enc_inputs = tf.placeholder(tf.int32, [None, None], "enc_inputs")
-      inp_lens = tf.placeholder(tf.int32, [None], "inp_lens")
+      enc_keys = tf.placeholder(tf.int32, [None, None], "enc_keys")
+      enc_locs = tf.placeholder(tf.int32, [None, None], "enc_locs")
+      enc_vals = tf.placeholder(tf.int32, [None, None], "enc_vals")
+      enc_lens = tf.placeholder(tf.int32, [None], "enc_lens")
       self.drop_out = tf.placeholder(tf.float32, (), "drop_out")
 
-      self.enc_inputs = enc_inputs
-      self.inp_lens = inp_lens
+      self.enc_keys = enc_keys
+      self.enc_locs = enc_locs
+      self.enc_vals = enc_vals
+      self.enc_lens = enc_lens
 
-      if(self.mode == "train"):
-        dec_inputs = tf.placeholder(tf.int32, [None, None], "dec_inputs")
-        targets = tf.placeholder(tf.int32, [None, None], "targets")
-        out_lens = tf.placeholder(tf.int32, [None], "out_lens")
-        self.learning_rate = tf.placeholder(tf.float32, (), "learning_rate")
-        self.lambda_kl = tf.placeholder(tf.float32, (), "lambda_kl")
+      dec_inputs = tf.placeholder(tf.int32, [None, None], "dec_inputs")
+      dec_targets = tf.placeholder(tf.int32, [None, None], "dec_targets")
+      dec_lens = tf.placeholder(tf.int32, [None], "dec_lens")
+      self.learning_rate = tf.placeholder(tf.float32, (), "learning_rate")
+      self.lambda_kl = tf.placeholder(tf.float32, (), "lambda_kl")
 
-        self.dec_inputs = dec_inputs
-        self.targets = targets
-        self.out_lens = out_lens
+      self.dec_inputs = dec_inputs
+      self.dec_targets = dec_targets
+      self.dec_lens = dec_lens
 
-    batch_size = tf.shape(enc_inputs)[0]
-    max_len = tf.shape(enc_inputs)[1]
+    batch_size = tf.shape(enc_keys)[0]
+    max_enc_len = tf.shape(enc_keys)[1]
+    max_dec_len = tf.shape(dec_inputs)[1]
 
     # Embedding 
     with tf.variable_scope("embeddings"):
-      embedding_matrix = tf.get_variable(
-        name="embedding_matrix", 
+      embedding_matrix_vals = tf.get_variable(
+        name="embedding_matrix_vals", 
         shape=[vocab_size, state_size],
         dtype=tf.float32,
         initializer=tf.random_normal_initializer(stddev=0.05))
-      enc_inputs = tf.nn.embedding_lookup(embedding_matrix, enc_inputs)
+      embedding_matrix_keys = tf.get_variable(
+        name="embedding_matrix_keys", 
+        shape=[vocab_size, state_size],
+        dtype=tf.float32,
+        initializer=tf.random_normal_initializer(stddev=0.05))
+      embedding_matrix_locs = tf.get_variable(
+        name="embedding_matrix_locs", 
+        shape=[vocab_size, state_size],
+        dtype=tf.float32,
+        initializer=tf.random_normal_initializer(stddev=0.05))
+
+      enc_keys = tf.nn.embedding_lookup(embedding_matrix_keys, enc_keys)
+      enc_vals = tf.nn.embedding_lookup(embedding_matrix_vals, enc_vals)
+      enc_locs = tf.nn.embedding_lookup(embedding_matrix_locs, enc_locs)
+
+      enc_inputs = (enc_keys + enc_vals + enc_locs) / 3.
 
       if(self.mode == "train"): 
-        dec_inputs = tf.nn.embedding_lookup(embedding_matrix, dec_inputs)
+        dec_inputs = tf.nn.embedding_lookup(embedding_matrix_vals, dec_inputs)
 
     # Encoder
     with tf.variable_scope("encoder"):
@@ -112,7 +131,7 @@ class Seq2seq(object):
         for i in range(enc_layers)]
       enc_cell = tf.nn.rnn_cell.MultiRNNCell(enc_cell)
       enc_outputs, enc_state = tf.nn.dynamic_rnn(enc_cell, enc_inputs,
-        sequence_length=inp_lens, dtype=tf.float32)
+        sequence_length=enc_lens, dtype=tf.float32)
 
     # Decoder 
     with tf.variable_scope("decoder"):
@@ -130,7 +149,7 @@ class Seq2seq(object):
       print("Using vae model")
       with tf.variable_scope("latent_code"):
         enc_mean = tf.reduce_sum(enc_outputs, 1) 
-        enc_mean /= tf.expand_dims(tf.cast(inp_lens, tf.float32), [1])
+        enc_mean /= tf.expand_dims(tf.cast(enc_lens, tf.float32), [1])
         z_code = enc_mean
 
         if(self.prior == "gaussian"):
@@ -168,13 +187,13 @@ class Seq2seq(object):
       _, dec_outputs_predict = decoding_infer(self.dec_start_id,
                                               dec_cell,
                                               dec_proj,
-                                              embedding_matrix,
+                                              embedding_matrix_vals,
                                               dec_init_state,
                                               enc_outputs,
                                               batch_size,
-                                              max_len,
-                                              inp_lens,
-                                              max_len,
+                                              max_dec_len,
+                                              enc_lens,
+                                              max_enc_len,
                                               self.is_attn,
                                               self.sampling_method,
                                               self.topk_sampling_size,
@@ -189,9 +208,9 @@ class Seq2seq(object):
                                             dec_proj,
                                             dec_init_state, 
                                             enc_outputs,  
-                                            max_len, 
-                                            inp_lens, 
-                                            max_len,
+                                            max_dec_len, 
+                                            enc_lens, 
+                                            max_enc_len,
                                             self.is_attn,
                                             self.state_size)
 
@@ -203,9 +222,9 @@ class Seq2seq(object):
         self.model_saver = tf.train.Saver(all_variables, max_to_keep=3)
 
         # loss and optimizer
-        dec_mask = tf.sequence_mask(out_lens, max_len, dtype=tf.float32)
+        dec_mask = tf.sequence_mask(dec_lens, max_dec_len, dtype=tf.float32)
         dec_loss = tf.contrib.seq2seq.sequence_loss(
-          dec_logits_train, targets, dec_mask)
+          dec_logits_train, dec_targets, dec_mask)
 
         if(self.vae):
           if(self.prior == "gaussian"):
@@ -256,11 +275,13 @@ class Seq2seq(object):
     # kl annealing
     # lambda_kl = (ei // 2) * self.lambda_kl_config + 0.001
     lambda_kl = self.lambda_kl_config
-    feed_dict = { self.enc_inputs: batch_dict["enc_inputs"], 
-                  self.inp_lens: batch_dict["inp_lens"],
+    feed_dict = { self.enc_keys: batch_dict["enc_keys"], 
+                  self.enc_vals: batch_dict["enc_vals"],
+                  self.enc_locs: batch_dict["enc_locs"],  
+                  self.enc_lens: batch_dict["enc_lens"],
                   self.dec_inputs: batch_dict["dec_inputs"],
-                  self.targets: batch_dict["targets"],
-                  self.out_lens: batch_dict["out_lens"],
+                  self.dec_targets: batch_dict["dec_targets"],
+                  self.dec_lens: batch_dict["dec_lens"],
                   self.drop_out: batch_dict["drop_out"],
                   self.learning_rate: lr,
                   self.lambda_kl: lambda_kl}
@@ -270,13 +291,26 @@ class Seq2seq(object):
   def valid_step(self, sess, batch_dict):
     """Validation, predict NLL, used to evaluate the density estimation 
     performance"""
-    feed_dict = { self.enc_inputs: batch_dict["enc_inputs"], 
-                  self.inp_lens: batch_dict["inp_lens"],
+    feed_dict = { self.enc_keys: batch_dict["enc_keys"], 
+                  self.enc_vals: batch_dict["enc_vals"],
+                  self.enc_locs: batch_dict["enc_locs"], 
+                  self.enc_lens: batch_dict["enc_lens"],
                   self.dec_inputs: batch_dict["dec_inputs"],
-                  self.targets: batch_dict["targets"],
-                  self.out_lens: batch_dict["out_lens"],
+                  self.dec_targets: batch_dict["dec_targets"],
+                  self.dec_lens: batch_dict["dec_lens"],
                   self.drop_out: 0.}
     output_dict = sess.run(self.valid_output, feed_dict=feed_dict)
+    return output_dict
+
+  def predict_greedy(self, sess, batch_dict):
+    """Greedy decoding, always choose the word with the highest probability"""
+    feed_dict = { self.enc_keys: batch_dict["enc_keys"], 
+                  self.enc_vals: batch_dict["enc_vals"],
+                  self.enc_locs: batch_dict["enc_locs"], 
+                  self.enc_lens: batch_dict["enc_lens"],
+                  self.dec_inputs: batch_dict['dec_inputs'],
+                  self.drop_out: 0.}
+    output_dict = sess.run(self.infer_output, feed_dict=feed_dict)
     return output_dict
 
   def predict(self, sess, batch_dict):
@@ -289,19 +323,11 @@ class Seq2seq(object):
       output_dict = self.predict_topk_sampling(sess, batch_dict)
     return output_dict
 
-  def predict_greedy(self, sess, batch_dict):
-    """Greedy decoding, always choose the word with the highest probability"""
-    feed_dict = { self.enc_inputs: batch_dict["enc_inputs"], 
-                  self.inp_lens: batch_dict["inp_lens"],
-                  self.drop_out: 0.}
-    output_dict = sess.run(self.infer_output, feed_dict=feed_dict)
-    return output_dict
-
   def random_walk(self, sess, batch_dict, step_length=5):
     """Random walk decoding, start from p0 -> p1 -> p2 -> p3 ... """
     outputs = []
     feed_dict = { self.enc_inputs: batch_dict["enc_inputs"], 
-                  self.inp_lens: batch_dict["inp_lens"],
+                  self.enc_lens: batch_dict["enc_lens"],
                   self.drop_out: 0.}
     def _feed_dict_update(feed_dict, output_dict):
       batch_size = output_dict["dec_predict"].shape[0]
@@ -309,15 +335,15 @@ class Seq2seq(object):
       inputs = np.concatenate(
         [np.zeros([batch_size, 1]) + self.dec_start_id, inputs], axis=1)
 
-      inp_lens = []
+      enc_lens = []
       max_sent_len = inputs.shape[1]
       for s in inputs:
         for l in range(max_sent_len):
           if(s[l] == self.dec_end_id): break
-        inp_lens.append(l)
+        enc_lens.append(l)
 
       feed_dict[self.enc_inputs] = inputs
-      feed_dict[self.inp_lens] = np.array(inp_lens)
+      feed_dict[self.enc_lens] = np.array(enc_lens)
       return feed_dict
 
     for i in range(step_length):

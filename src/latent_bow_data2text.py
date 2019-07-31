@@ -1,4 +1,4 @@
-"""The latent bag of words to sequence to sequence model
+"""The latent bag of words model for data to text generation 
 
 Yao Fu, Columbia University 
 yao.fu@columbia.edu
@@ -72,7 +72,7 @@ def _copy_loss(dec_prob_train, dec_targets, dec_mask):
 ################################################################################
 ## Model class 
 
-class LatentBow(object):
+class LatentBowData2text(object):
   """The latent bow model
   
   The encoder will encode the souce into b and z: 
@@ -88,6 +88,7 @@ class LatentBow(object):
     self.mode = config.model_mode
     self.model_name = config.model_name
     self.vocab_size = config.vocab_size
+    self.key_size = config.key_size
     self.is_gumbel = config.is_gumbel
     self.gumbel_tau_config = config.gumbel_tau
     self.max_enc_bow = config.max_enc_bow
@@ -123,6 +124,7 @@ class LatentBow(object):
     print("Building the Latent BOW - sequence to sequence model ... ")
 
     vocab_size = self.vocab_size
+    key_size = self.key_size
     state_size = self.state_size
     enc_layers = self.enc_layers
     max_enc_bow = self.max_enc_bow
@@ -130,12 +132,16 @@ class LatentBow(object):
 
     # Placeholders
     with tf.name_scope("placeholders"):
-      enc_inputs = tf.placeholder(tf.int32, [None, None], "enc_inputs")
+      enc_keys = tf.placeholder(tf.int32, [None, None], "enc_keys")
+      enc_locs = tf.placeholder(tf.int32, [None, None], "enc_locs")
+      enc_vals = tf.placeholder(tf.int32, [None, None], "enc_vals")
       enc_lens = tf.placeholder(tf.int32, [None], "enc_lens")
       self.drop_out = tf.placeholder(tf.float32, (), "drop_out")
       self.gumbel_tau = tf.placeholder(tf.float32, (), "gumbel_tau")
 
-      self.enc_inputs = enc_inputs
+      self.enc_keys = enc_keys
+      self.enc_locs = enc_locs
+      self.enc_vals = enc_vals
       self.enc_lens = enc_lens
 
       enc_targets = tf.placeholder(tf.int32, [None, None], "enc_targets")
@@ -148,19 +154,33 @@ class LatentBow(object):
       self.dec_targets = dec_targets
       self.dec_lens = dec_lens
 
-    batch_size = tf.shape(enc_inputs)[0]
-    max_len = tf.shape(enc_inputs)[1]
+    batch_size = tf.shape(enc_keys)[0]
+    max_enc_len = tf.shape(enc_keys)[1]
+    max_dec_len = tf.shape(dec_targets)[1]
 
     # Embedding 
     with tf.variable_scope("embeddings"):
-      embedding_matrix = tf.get_variable(
-        name="embedding_matrix", 
+      embedding_matrix_vals = tf.get_variable(
+        name="embedding_matrix_vals", 
         shape=[vocab_size, state_size],
         dtype=tf.float32,
         initializer=tf.random_normal_initializer(stddev=0.05))
+      embedding_matrix_keys = tf.get_variable(
+        name="embedding_matrix_keys", 
+        shape=[key_size, state_size],
+        dtype=tf.float32,
+        initializer=tf.random_normal_initializer(stddev=0.05))
+      embedding_matrix_locs = tf.get_variable(
+        name="embedding_matrix_locs", 
+        shape=[100, state_size],
+        dtype=tf.float32,
+        initializer=tf.random_normal_initializer(stddev=0.05))
 
-      enc_inputs = tf.nn.embedding_lookup(embedding_matrix, enc_inputs)
-      dec_inputs = tf.nn.embedding_lookup(embedding_matrix, dec_inputs)
+      enc_keys = tf.nn.embedding_lookup(embedding_matrix_keys, enc_keys)
+      enc_vals = tf.nn.embedding_lookup(embedding_matrix_vals, enc_vals)
+      enc_locs = tf.nn.embedding_lookup(embedding_matrix_locs, enc_locs)
+      enc_inputs = (enc_keys + enc_vals + enc_locs) / 3.
+      dec_inputs = tf.nn.embedding_lookup(embedding_matrix_vals, dec_inputs)
 
     # Encoder
     with tf.variable_scope("encoder"):
@@ -176,7 +196,7 @@ class LatentBow(object):
     with tf.variable_scope("bow_output"):
       bow_topk_prob, gumbel_topk_prob, seq_neighbor_ind, seq_neighbor_prob = \
         bow_predict_seq_tag(vocab_size, batch_size, enc_outputs, enc_lens, 
-        max_len, self.is_gumbel, self.gumbel_tau)
+        max_enc_len, self.is_gumbel, self.gumbel_tau)
       seq_neighbor_output = {"seq_neighbor_ind": seq_neighbor_ind, 
         "seq_neighbor_prob": seq_neighbor_prob}
   
@@ -200,7 +220,7 @@ class LatentBow(object):
     # Encoder soft sampling 
     with tf.name_scope("gumbel_topk_sampling"):
       sample_ind, sample_prob, sample_memory = bow_gumbel_topk_sampling(
-        gumbel_topk_prob, embedding_matrix, self.sample_size, vocab_size)
+        gumbel_topk_prob, embedding_matrix_vals, self.sample_size, vocab_size)
       sample_memory_lens = tf.ones(batch_size, tf.int32) * self.sample_size
       sample_memory_avg = tf.reduce_mean(sample_memory, 1) # [B, S]
 
@@ -256,7 +276,7 @@ class LatentBow(object):
         # [B, M + T, S]
         dec_memory = [sample_memory, enc_outputs]
         dec_mem_len = [sample_memory_lens, enc_lens]
-        dec_max_mem_len = [self.sample_size, max_len]
+        dec_max_mem_len = [self.sample_size, max_enc_len]
       else:
         dec_memory = sample_memory
         dec_mem_len = sample_memory_lens
@@ -270,9 +290,9 @@ class LatentBow(object):
       (dec_outputs_predict, dec_logits_train, dec_prob_train, pointer_ent, 
         avg_max_ptr, avg_num_copy) = decode( 
         self.dec_start_id, dec_inputs, 
-        dec_cell, dec_proj, embedding_matrix, 
+        dec_cell, dec_proj, embedding_matrix_vals, 
         dec_init_state, dec_memory, dec_mem_len, dec_max_mem_len, 
-        batch_size, max_len, self.sampling_method, self.topk_sampling_size,
+        batch_size, max_dec_len, self.sampling_method, self.topk_sampling_size,
         state_size, multi_source=True, copy=self.copy, copy_ind=sample_ind,
         dec_ptr_g_proj=dec_ptr_g_proj, dec_ptr_k_proj=dec_ptr_k_proj,
         bow_cond=bow_cond, bow_cond_gate_proj=bow_cond_gate_proj)
@@ -290,7 +310,7 @@ class LatentBow(object):
 
     # decoder output, training and inference, combined with encoder loss 
     with tf.name_scope("dec_output"):
-      dec_mask = tf.sequence_mask(dec_lens, max_len, dtype=tf.float32)
+      dec_mask = tf.sequence_mask(dec_lens, max_dec_len, dtype=tf.float32)
       if(self.copy == False):
         dec_loss = tf.contrib.seq2seq.sequence_loss(
           dec_logits_train, dec_targets, dec_mask)
@@ -323,9 +343,11 @@ class LatentBow(object):
 
   def train_step(self, sess, batch_dict, ei):
     """Single step training"""
-    feed_dict = { self.enc_inputs: batch_dict["enc_inputs"],
+    feed_dict = { self.enc_keys: batch_dict["enc_keys"], 
+                  self.enc_vals: batch_dict["enc_vals"],
+                  self.enc_locs: batch_dict["enc_locs"], 
                   self.enc_lens: batch_dict["enc_lens"],
-                  self.enc_targets: batch_dict["enc_targets"],
+                  self.enc_targets: batch_dict["dec_bow"],
                   self.dec_inputs: batch_dict["dec_inputs"],
                   self.dec_targets: batch_dict["dec_targets"],
                   self.dec_lens: batch_dict["dec_lens"],
@@ -336,8 +358,11 @@ class LatentBow(object):
 
   def predict(self, sess, batch_dict):
     """Single step prediction"""
-    feed_dict = { self.enc_inputs: batch_dict["enc_inputs"],
+    feed_dict = { self.enc_keys: batch_dict["enc_keys"], 
+                  self.enc_vals: batch_dict["enc_vals"],
+                  self.enc_locs: batch_dict["enc_locs"], 
                   self.enc_lens: batch_dict["enc_lens"],
+                  self.dec_targets: batch_dict['dec_targets'],
                   self.drop_out: 0.,
                   # self.gumbel_tau: self.gumbel_tau_config, # soft sample 
                   self.gumbel_tau: 0.00001 # near-hard sample

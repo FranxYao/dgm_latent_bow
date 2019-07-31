@@ -11,9 +11,12 @@ import numpy as np
 from config import Config
 from controller import Controller
 from data_utils import Dataset
+from data_utils_table2text import DatasetTable2text
 from seq2seq import Seq2seq
 from bow_seq2seq import BowSeq2seq
 from latent_bow import LatentBow
+from latent_bow_data2text import LatentBowData2text
+from seq2seq_data2text import Seq2seqData2text
 from lm import LM
 
 from tqdm import tqdm
@@ -37,6 +40,8 @@ flags.DEFINE_integer("train_print_interval", -1,
 
 flags.DEFINE_integer("topk_sampling_size", -1, 
   "The print interval during training")
+flags.DEFINE_integer("enc_layers", -1, 
+  "Number of layers in the encoder")
 
 flags.DEFINE_string("optimizer", "", "The optimizer")
 flags.DEFINE_float("learning_rate", -1., "The learning rate")
@@ -76,20 +81,29 @@ def main():
   config.print_arg()
 
   # dataset
-  dset = Dataset(config)
-  dset.build()
-  config.vocab_size = dset.vocab_size
+  if(config.dataset == 'wikibio'):
+    dset = DatasetTable2text(config)
+    dset.load()
+  else: 
+    dset = Dataset(config)
+    dset.build()
+  config.vocab_size = len(dset.word2id)
+  config.key_size = len(dset.key2id)
   config.dec_start_id = dset.word2id["_GOO"]
   config.dec_end_id = dset.word2id["_EOS"]
   config.pad_id = dset.pad_id
   config.stop_words = dset.stop_words
 
   # model 
-  if(config.model_name == "seq2seq"): Model = Seq2seq
+  if(config.model_name == "seq2seq"): 
+    if(config.dataset == 'wikibio'): Model = Seq2seqData2text
+    else: Model = Seq2seq
   elif(config.model_name == "bow_seq2seq"): Model = BowSeq2seq
   elif(config.model_name == "vae"): Model = Vae
   elif(config.model_name == "hierarchical_vae"): Model = Hierarchical_Vae
-  elif(config.model_name == "latent_bow"): Model = LatentBow
+  elif(config.model_name == "latent_bow"): 
+    if(config.dataset == 'wikibio'): Model = LatentBowData2text
+    else: Model = LatentBow
   elif(config.model_name == "lm"): Model = LM
   else: 
     msg = "the model name shoule be in ['seq2seq', 'vae', 'hierarchical_vae', 'latent_low', 'lm'], "
@@ -104,7 +118,6 @@ def main():
   controller = Controller(config)
   if(config.model_name != "lm"): 
     if("lm" in controller.eval_metrics_list): controller.build_lm(LM, config)  
-    
   controller.train(model, dset)
   return 
 

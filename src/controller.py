@@ -212,7 +212,7 @@ class Controller(object):
     return 
 
   def train(self, model, dset):
-    """Train the model with the controller"""    
+    """Train the model with the controller"""     
     print("Start training ...")
 
     os.environ["CUDA_VISIBLE_DEVICES"] = self.gpu_id

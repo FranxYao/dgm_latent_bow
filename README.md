@@ -22,6 +22,9 @@ We use the MSCOCO(17) dataset and the Quora dataset.
 
 ## Code Structure
 
+The core implementation is in the following files: 
+
+* config.py 
 * main.py 
 * controller.py 
 * latent_bow.py 

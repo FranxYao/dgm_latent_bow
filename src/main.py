@@ -84,11 +84,11 @@ def main():
   if(config.dataset == 'wikibio'):
     dset = DatasetTable2text(config)
     dset.load()
+    config.key_size = len(dset.key2id)
   else: 
     dset = Dataset(config)
     dset.build()
   config.vocab_size = len(dset.word2id)
-  config.key_size = len(dset.key2id)
   config.dec_start_id = dset.word2id["_GOO"]
   config.dec_end_id = dset.word2id["_EOS"]
   config.pad_id = dset.pad_id

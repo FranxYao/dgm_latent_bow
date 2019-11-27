@@ -5,7 +5,7 @@ import shutil
 
 class Config:
   ## Data configuration 
-  dataset = "wikibio" # ["mscoco", "quora", 'wikibio']
+  dataset = "quora" # ["mscoco", "quora", 'wikibio']
 
   # For a detailed data processing clarification and consideration, see the 
   # data_utils.py
@@ -48,7 +48,7 @@ class Config:
   """Model names in: 
   ["seq2seq", "bow_seq2seq", "latent_bow", "vae", "hierarchical_vae", "lm"]
   """
-  model_name = "bow_seq2seq" 
+  model_name = "latent_bow" 
   model_mode = "train" # ["train", "test"]
   model_version = "0.1"
   model_path = "../models/"

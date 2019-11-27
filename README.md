@@ -1,3 +1,5 @@
+NOTE: I know that many of you are encountering issues running the code. I am so sorry for not setting up this properly perviously. I am currently stuck in China for a visa issue but my codes are in my New York apartment ... So sorry for all the inconvience. Will address all issues before NeurIPS. 
+
 # The Latent Bag of Words Model 
 
 Implementation of Yao Fu, Yansong Feng and John Cunningham, _Paraphrase Generation with Latent Bag of Words_. NeurIPS 2019. [paper](https://github.com/FranxYao/dgm_latent_bow/blob/master/doc/latent_bow_camera_ready.pdf) 
@@ -12,6 +14,8 @@ For more background about deep generative models for natural language processing
 ## Reproduce 
 
 ```bash 
+mkdir models
+mkdir outputs
 cd src
 python main.py 
 ```

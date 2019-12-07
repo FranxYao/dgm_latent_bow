@@ -269,9 +269,9 @@ class Controller(object):
 
       if(ei >= 0):
         if(self.bow_pred_method == "seq2seq"):
-          self.encoder_eval(model, dset, sess, "dev")
+          self.encoder_eval(model, dset, sess, "test")
         else: 
-          metrics_dict = self.eval(model_name, model, dset, sess, "dev", ei=ei)
+          metrics_dict = self.eval(model_name, model, dset, sess, "test", ei=ei)
           if(metrics_dict[target_metrics] > best_target_metrics):
             best_epoch = ei
             print("increase validation %s from %.4f to %.4f, update model" %

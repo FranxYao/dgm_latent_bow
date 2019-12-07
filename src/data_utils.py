@@ -422,7 +422,7 @@ def train_dev_split(dataset_name, train_sets, ratio=0.8):
       else: train.append(train_sets[i])
 
   print("Size of training set: %d" % len(train))
-  print("Size of dev set: %d" % len(dev))
+  print("Size of test set: %d" % len(dev))
   return train, dev
 
 class Dataset(object):
@@ -512,10 +512,10 @@ class Dataset(object):
       [self.start_id, self.eos_id, self.unk_id, self.pad_id])
 
     self._dataset["train"] = train_sentences
-    self._dataset["dev"] = dev_sentences
+    self._dataset["test"] = dev_sentences
     # self._dataset["test"] = test_sentences
     self._sent_lens["train"] = train_lens
-    self._sent_lens["dev"] = dev_lens
+    self._sent_lens["test"] = dev_lens
     # self._sent_lens["test"] = test_lens
     return 
 

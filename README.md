@@ -49,3 +49,9 @@ The core implementation is in the following files:
 ## Others
 
 There are certain codes about testing the Wikibio dataset. These part of the code is not included in the paper, its just for tesing the data-to-text task. So the published part might be incomplete. If you do want to extend the model to data-to-text, feel free to contact me. 
+
+The rouge evaluation is from here: https://pypi.org/project/py-rouge/. There is also a google implementation recently: https://github.com/google-research/google-research/tree/master/rouge. 
+
+The main_test.py is not for testing the model, it is for debugging in the ipython terminal.
+
+Embarrassingly, I cannot replicate the results in Pytorch ... I moved to Pytorch after this project and there are still many things to understand (as a many-year tfer). It seems that the pytorch LSTM does not support residual connections, which results in degraded performance when I changed the number of layers to be 2. If you happen to find a solution, or find something close, do contact me. 

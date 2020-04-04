@@ -1,4 +1,4 @@
-\*\*Update\*\*: On the Interpretability of Discrete Set Representations: A Bayesian Perspective. 
+\*\*Update\*\*: [_On the Interpretability of Discrete Set Representations: A Bayesian Perspective_](https://github.com/FranxYao/dgm_latent_bow/blob/master/doc/lbow_interpretability.pdf)
 * The discussion about the identifiability and interpretability of the LBOW model in the unsupervised setting. 
 * Work in progress
 

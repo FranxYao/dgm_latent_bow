@@ -1,3 +1,6 @@
+\*\*Update\*\*: On the Interpretability of Discrete Set Representations: A Bayesian Perspective. 
+* The discussion about the identifiability and interpretability of the LBOW model in the unsupervised setting. 
+* Work in progress
 
 # The Latent Bag of Words Model 
 
